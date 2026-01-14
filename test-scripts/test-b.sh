@@ -13,15 +13,6 @@ test_func () {
     create_repo 
     install_packages
     mount_iso 
-    create_groups 
-    create_users
-    create_shared_group_files
-    create_disk
-    create_lvm
-    copy_edwin_files
-    create_scheduled_task
-    create_nfs_directories
-    create_autofs 
     return 0 
    
 }
@@ -30,15 +21,6 @@ cleanup () {
     cleanup_create_repo
     cleanup_install_packages
     cleanup_mount_iso
-    cleanup_create_groups 
-    cleanup_create_users
-    cleanup_create_lvm
-    cleanup_create_disk
-    cleanup_shared_group_files
-    cleanup_edwin_files
-    cleanup_scheduled_task
-    cleanup_create_nfs_directories
-    cleanup_create_autofs
     cleanup_fstab
 }
 
@@ -72,7 +54,7 @@ cleanup_fstab () {
 
 }
 
-cleanup_create_disk () { 
+cleanup_create_disk () { # Removes ALL data from disk , unlike cleanup_resize_root_lvm which only removes the one 
     if [[ -f /mydata ]]; then 
         umount /mydata
     fi 
@@ -87,7 +69,6 @@ cleanup_mount_iso () {
         umount /repo
     fi
 }
-
 
 
 
@@ -130,6 +111,18 @@ mount_iso () {
 
     echo "UUID=$UUID /repo iso9660 defaults 0 0" >> /etc/fstab && echo -e "\tWrote /dev/sr0 entry to fstab\n"  
     systemctl daemon-reload && mount -a && return 0 
+}
+
+
+# WARNING: Cleanup for this function is not feasible if using xfs filesystem 
+resize_root_lvm () { 
+   
+    # Create partition on /dev/sdb as lvm and add to almalinux vg 
+
+    parted -s /dev/sdb mklabel gpt mkpart primary 1Mib 2Gib set 1 lvm on 
+    vgextend almalinux /dev/sdb1 
+    lvextend /dev/almalinux/root -L +1Gib 
+    xfs_growfs / && echo -e "\tRoot Filesystem increased\n"
 }
 
 # ==============
