@@ -230,6 +230,7 @@ create_users_and_groups () {
 
             "vicky")
                 useradd $NAME -u 2008
+                ;;
             *)
                 useradd $NAME
              
