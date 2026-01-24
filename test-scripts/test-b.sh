@@ -13,6 +13,7 @@ test_func () {
     create_repo 
     install_packages
     mount_iso 
+    create_swap_partition 
     return 0 
    
 }
@@ -22,12 +23,14 @@ cleanup () {
     cleanup_install_packages
     cleanup_mount_iso
     cleanup_fstab
+    cleanup_add_skel_file 
 }
 
 # ==============
 #     Cleanup
 #     Functions
 # ==============
+
 
 cleanup_create_repo () { 
     if [ -f /etc/yum.repos.d/local.repo ]; then 
@@ -72,14 +75,65 @@ cleanup_mount_iso () {
 
 
 
+cleanup_vfat_partition (){
+    PART=$(parted -l | grep "mylabel" | awk -F " " '{print $1')
+    parted -s /dev/sdb rm $PART 
+}
+
+
+cleanup_swap_partition (){
+    
+    DISK=$(blkid | grep "myswap" | awk -F ":" '{print $1}')
+    UUID=$(blkid $DISK -o value -s UUID )
+    PART=$(parted -l | grep "myswap" | awk -F " " '{print $1')
+
+    swapoff $DISK 
+    parted -s /dev/sdb rm $PART 
+    sed -i "/$UUID/d"
+    echo -e "\tRemoved fstab entry for $DISK\n" 
+}
+
+
+# TODO: TEST 
+cleanup_add_skel_file () { 
+    if [[ -f /etc/skel/NEWFILE ]]; then
+        rm -rf /etc/skel/NEWWFILE
+    fi
+}
+
+# TODO: TEST 
+cleanup_create_users () { 
+
+    ls -al /groups
+    rm -rf /groups && echo -e "\tRemoved shared group dirs.\n"
+
+    USERS=(student laura linda lisa lori vicky)
+    GROUP=(livingopensource operations)
+
+    for x in ${USERS[@]}; do 
+        userdel -Z -r $x 
+        find / -user $x | xargs rm -rf # remove all users files in other filesystems 
+    done
+
+
+    for group in ${GROUP[@]}; do 
+        groupdel -f $group
+    done
+
+
+}
+
+cleanup_copy_linda_files () {
+    rm -rf /tmp/lindafiles 
+}
 
 # ==============
 #     Tasks
 # ==============
 
+
 install_packages() {
     dnf install -y policycoreutils-python-utils vsftpd nfs-utils vim autofs bash-completion dosfstools && echo -e "\tAll packages installed successfully\n"
-
     # Enable vsftpd daemon to be automatically started at reboot 
     systemctl enable vsftpd 
 
@@ -116,13 +170,84 @@ mount_iso () {
 
 # WARNING: Cleanup for this function is not feasible if using xfs filesystem 
 resize_root_lvm () { 
-   
-    # Create partition on /dev/sdb as lvm and add to almalinux vg 
-
+   # Create partition on /dev/sdb as lvm and add to almalinux vg 
     parted -s /dev/sdb mklabel gpt mkpart primary 1Mib 2Gib set 1 lvm on 
     vgextend almalinux /dev/sdb1 
     lvextend /dev/almalinux/root -L +1Gib 
     xfs_growfs / && echo -e "\tRoot Filesystem increased\n"
+}
+
+# TODO: TEST
+create_swap_partition () { 
+    parted -s /dev/sdb mkpart myswap linux-swap 2Gib 3Gib 
+    DISK=$(blkid | grep "myswap" | awk -F ":" '{print $1}')
+    mkswap $DISK
+    echo "UUID=$(blkid -o value -s UUID $DISK) none swap defaults 0 0" >> /etc/fstab 
+    swapon $DISK && echo -e "\tEnabled swap partition /dev/sdb2\n"
+    systemctl daemon-reload && mount -a 
+
+}
+
+# TODO: TEST
+create_vfat_partition() { 
+    parted -s /dev/sdb mkpart mylabel 3Gib 4Gib 
+    DISK=$(blkid | grep "mylabel" | awk -F ":" '{print $1}')
+    dosfslabel $DISK mylabel 
+    mkdir /mydata 
+    mkfs.vfat $DISK
+    echo "UUID=$(blkid -o value -s UUID $DISK) /mydata vfat defaults 0 0" >> /etc/fstab 
+    
+    systemctl daemon-reload && mount -a 
+
+}
+
+# TODO: TEST
+add_skel_file () { 
+    touch /etc/skel/NEWFILE && echo -e "\tAdded NEWFILE to /etc/skel\n"
+}
+
+# TODO: TEST 
+create_users_and_groups () { 
+    USERS=(student laura linda lisa lori vicky)
+    GROUP=(livingopensource operations)
+
+    for group in ${GROUP[@]}; do
+        groupadd $group; 
+        mkdir -p /groups/$group 
+        chown :$group /groups/$group
+        chmod 1770 /groups/$group 
+        
+    done
+
+    for NAME in ${USERS[@]}; do
+        case $NAME in 
+            "laura"|"linda")
+                useradd $NAME -G livingopensource 
+                ;;
+            "lisa"|"lori")
+                useradd $NAME -G operations 
+                ;;
+
+            "vicky")
+                useradd $NAME -u 2008
+            *)
+                useradd $NAME
+             
+        esac
+    done
+
+
+    
+}
+
+copy_linda_files () {
+    if [[ ! -d /tmp/lindafiles ]]; then
+        mkdir /tmp/lindafiles
+    fi 
+    for file in $(find / -type f -user linda 2> /dev/null); do 
+        yes | cp $file /tm/lindafiles 
+    done 
+
 }
 
 # ==============
