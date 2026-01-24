@@ -10,20 +10,22 @@
 
 
 test_func () {
-    create_repo 
-    install_packages
-    mount_iso 
+    #create_repo 
+    #install_packages
+    #mount_iso 
     create_swap_partition 
     return 0 
    
 }
 
 cleanup () { 
-    cleanup_create_repo
-    cleanup_install_packages
-    cleanup_mount_iso
+#    cleanup_create_repo
+#    cleanup_install_packages
+#    cleanup_mount_iso
+    cleanup_create_swap_partition 
     cleanup_fstab
-    cleanup_add_skel_file 
+#    cleanup_add_skel_file 
+    return 0; 
 }
 
 # ==============
@@ -181,7 +183,8 @@ resize_root_lvm () {
 create_swap_partition () { 
     parted -s /dev/sdb mkpart myswap linux-swap 2Gib 3Gib 
     DISK=$(blkid | grep "myswap" | awk -F ":" '{print $1}')
-    mkswap $DISK
+    echo -e "\tDisk: $DISK\n"
+    #mkswap $DISK
     echo "UUID=$(blkid -o value -s UUID $DISK) none swap defaults 0 0" >> /etc/fstab 
     swapon $DISK && echo -e "\tEnabled swap partition /dev/sdb2\n"
     systemctl daemon-reload && mount -a 
