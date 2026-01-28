@@ -264,8 +264,8 @@ create_users_and_groups () {
 }
 
 copy_linda_files () {
-    if [[ ! -d /tmp/lindafiles ]]; then
-        mkdir /tmp/lindafiles
+    if [[ ! -d /root/lindafiles ]]; then
+        mkdir /root/lindafiles
     fi 
     for file in $(find / -type f -user linda 2> /dev/null); do 
         yes | cp $file /root/lindafiles 
