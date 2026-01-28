@@ -16,9 +16,9 @@ test_func () {
     mount_iso 
     add_skel_file 
     create_users_and_groups 
+    resize_root_lvm 
     create_vfat_partition
     create_swap_partition 
-    resize_root_lvm 
     copy_linda_files 
     return 0 
    
@@ -32,7 +32,6 @@ cleanup () {
     cleanup_create_users_and_groups 
     cleanup_create_vfat_partition
     cleanup_create_swap_partition 
-    cleanup_resize_root_lvm 
     cleanup_copy_linda_files 
     return 0; 
 }
@@ -86,7 +85,7 @@ cleanup_mount_iso () {
 
 
 
-cleanup_vfat_partition (){
+cleanup_create_vfat_partition (){
     PART=$(parted -l | grep "mylabel" | awk -F " " '{print $1')
     parted -s /dev/sdb rm $PART 
 }
@@ -113,7 +112,7 @@ cleanup_add_skel_file () {
 }
 
 # TODO: TEST 
-cleanup_create_users () { 
+cleanup_create_users_and_groups () { 
 
     ls -al /groups
     rm -rf /groups && echo -e "\tRemoved shared group dirs.\n"
@@ -269,7 +268,7 @@ copy_linda_files () {
         mkdir /tmp/lindafiles
     fi 
     for file in $(find / -type f -user linda 2> /dev/null); do 
-        yes | cp $file /tm/lindafiles 
+        yes | cp $file /root/lindafiles 
     done 
 
 }
