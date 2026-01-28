@@ -9,22 +9,31 @@
 # ==============
 
 
+# TODO: Run all functions 
 test_func () {
-    #create_repo 
-    #install_packages
-    #mount_iso 
+    create_repo 
+    install_packages
+    mount_iso 
+    add_skel_file 
+    create_users_and_groups 
+    create_vfat_partition
     create_swap_partition 
+    resize_root_lvm 
+    copy_linda_files 
     return 0 
    
 }
 
 cleanup () { 
-#    cleanup_create_repo
-#    cleanup_install_packages
-#    cleanup_mount_iso
+    cleanup_create_repo 
+    cleanup_install_packages
+    cleanup_mount_iso 
+    cleanup_add_skel_file 
+    cleanup_create_users_and_groups 
+    cleanup_create_vfat_partition
     cleanup_create_swap_partition 
-    cleanup_fstab
-#    cleanup_add_skel_file 
+    cleanup_resize_root_lvm 
+    cleanup_copy_linda_files 
     return 0; 
 }
 
@@ -83,11 +92,11 @@ cleanup_vfat_partition (){
 }
 
 
-cleanup_swap_partition (){
+cleanup_create_swap_partition (){
     
     DISK=$(blkid | grep "myswap" | awk -F ":" '{print $1}')
     UUID=$(blkid $DISK -o value -s UUID )
-    PART=$(parted -l | grep "myswap" | awk -F " " '{print $1')
+    PART=$(parted -l | grep "myswap" | awk -F " " '{print $1}')
 
     swapoff $DISK 
     parted -s /dev/sdb rm $PART 
@@ -135,8 +144,9 @@ cleanup_copy_linda_files () {
 
 
 install_packages() {
-    dnf install -y policycoreutils-python-utils vsftpd nfs-utils vim autofs bash-completion dosfstools && echo -e "\tAll packages installed successfully\n"
-    # Enable vsftpd daemon to be automatically started at reboot 
+    dnf install -y httpd policycoreutils-python-utils vsftpd nfs-utils vim autofs bash-completion dosfstools && echo -e "\tAll packages installed successfully\n"
+    # Enable vsftpd & httpd daemon to be automatically started at reboot 
+    systemctl enable httpd
     systemctl enable vsftpd 
 
     return 0 
@@ -173,38 +183,48 @@ mount_iso () {
 # WARNING: Cleanup for this function is not feasible if using xfs filesystem 
 resize_root_lvm () { 
    # Create partition on /dev/sdb as lvm and add to almalinux vg 
+    if ! parted /dev/sdb print | grep "gpt"; then
+        parted -s /dev/sdb mklabel gpt 
+    fi
     parted -s /dev/sdb mklabel gpt mkpart primary 1Mib 2Gib set 1 lvm on 
     vgextend almalinux /dev/sdb1 
     lvextend /dev/almalinux/root -L +1Gib 
     xfs_growfs / && echo -e "\tRoot Filesystem increased\n"
 }
-
-# TODO: TEST
+    
 create_swap_partition () { 
-    parted -s /dev/sdb mkpart myswap linux-swap 2Gib 3Gib 
-    DISK=$(blkid | grep "myswap" | awk -F ":" '{print $1}')
-    echo -e "\tDisk: $DISK\n"
-    #mkswap $DISK
-    echo "UUID=$(blkid -o value -s UUID $DISK) none swap defaults 0 0" >> /etc/fstab 
-    swapon $DISK && echo -e "\tEnabled swap partition /dev/sdb2\n"
+    if ! parted /dev/sdb print | grep "gpt"; then
+        parted -s /dev/sdb mklabel gpt 
+    fi
+
+    parted -s "/dev/sdb" mkpart myswap linux-swap 2Gib 3Gib 
+    DISK_PART=$(blkid | grep "myswap" | awk -F ":" '{print $1}')
+    #echo -e "\tDisk: $DISK_PART\n"
+    mkswap $DISK_PART
+    echo "UUID=$(blkid -o value -s UUID $DISK_PART) none swap defaults 0 0" >> /etc/fstab 
+    swapon $DISK_PART && echo -e "\tEnabled swap partition /dev/sdb2\n"
     systemctl daemon-reload && mount -a 
 
 }
 
-# TODO: TEST
 create_vfat_partition() { 
-    parted -s /dev/sdb mkpart mylabel 3Gib 4Gib 
+    
+    if ! parted /dev/sdb print | grep "gpt"; then
+        parted -s /dev/sdb mklabel gpt 
+    fi
+    parted -s "/dev/sdb" mkpart mylabel 3Gib 4Gib 
     DISK=$(blkid | grep "mylabel" | awk -F ":" '{print $1}')
-    dosfslabel $DISK mylabel 
-    mkdir /mydata 
+    if [[ ! -d /mydata ]]; then 
+        mkdir /mydata 
+    fi
     mkfs.vfat $DISK
+    dosfslabel $DISK mylabel
     echo "UUID=$(blkid -o value -s UUID $DISK) /mydata vfat defaults 0 0" >> /etc/fstab 
     
     systemctl daemon-reload && mount -a 
 
 }
 
-# TODO: TEST
 add_skel_file () { 
     touch /etc/skel/NEWFILE && echo -e "\tAdded NEWFILE to /etc/skel\n"
 }
